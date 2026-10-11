@@ -40,15 +40,21 @@ def parse_decision(raw):
     return decision
 
 
-def run_agent(model, question=DEFAULT_QUESTION, max_steps=8):
+def run_agent(model, question=DEFAULT_QUESTION, max_steps=8, steps=None):
+    """Append actual steps to the supplied log, including incomplete steps."""
+    steps = [] if steps is None else steps
     messages = [{"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": question}]
     for step in range(1, max_steps + 1):
         print(f"\nStep {step}: asking Llama...", flush=True)
+        entry = {"step": step}
+        steps.append(entry)
         raw = model.complete(messages)
+        entry["model_response"] = raw
         messages.append({"role": "assistant", "content": raw})
         try:
             decision = parse_decision(raw)
+            entry["decision"] = decision
         except (ValueError, TypeError) as exc:
             observation = {"ok": False, "error": f"Invalid action: {exc} Follow the JSON format."}
         else:
@@ -57,6 +63,7 @@ def run_agent(model, question=DEFAULT_QUESTION, max_steps=8):
             print("Reason: " + decision["reason"], flush=True)
             print(f"Tool: {decision['name']}({json.dumps(decision['arguments'])})", flush=True)
             observation = execute_tool(decision["name"], decision["arguments"])
+        entry["observation"] = observation
         print("Observation: " + json.dumps(observation), flush=True)
         # Keep both the model's action and the actual tool result for the next step.
         messages.append({"role": "user", "content": json.dumps({"observation": observation})})

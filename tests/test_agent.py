@@ -4,10 +4,13 @@ import copy
 import io
 import json
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from contextlib import redirect_stdout
 from unittest.mock import patch
 from urllib.error import URLError
 
+from agent_demo.__main__ import main
 from agent_demo.agent import AgentError, DEFAULT_QUESTION, run_agent
 from agent_demo.models import LocalLlama, MODEL, URL
 from agent_demo.tools import execute_tool
@@ -82,6 +85,55 @@ class DemoTests(unittest.TestCase):
             self.assertEqual(payload["messages"], messages)
             self.assertEqual(payload["format"], "json")
             self.assertFalse(payload["stream"])
+
+    def test_saved_record_matches_actual_execution(self):
+        model = ScriptedModel([
+            call("get_price", item="notebook"),
+            call("multiply", a=12.5, b=3),
+            '{"action":"final","answer":"CNY 37.5"}',
+        ])
+        with TemporaryDirectory() as folder:
+            path = Path(folder) / "runs" / "latest.json"
+            with patch("agent_demo.__main__.RUN_LOG_PATH", path), patch(
+                "agent_demo.__main__.LocalLlama", return_value=model
+            ):
+                self.assertEqual(main(), 0)
+            record = json.loads(path.read_text())
+            self.assertEqual(record["status"], "completed")
+            self.assertEqual(record["answer"], "CNY 37.5")
+            self.assertEqual(len(record["steps"]), 3)
+            for step in record["steps"]:
+                self.assertEqual(json.loads(step["model_response"]), step["decision"])
+            self.assertEqual(record["steps"][0]["observation"]["data"]["unit_price"], 12.5)
+            self.assertEqual(record["steps"][1]["observation"]["data"]["result"], 37.5)
+            self.assertEqual(record["steps"][2]["decision"]["answer"], record["answer"])
+
+    def test_failed_run_replaces_previous_record_and_keeps_partial_steps(self):
+        model = ScriptedModel([call("get_price", item="notebook")])
+        with TemporaryDirectory() as folder:
+            path = Path(folder) / "latest.json"
+            path.write_text('{"status":"completed","answer":"old answer"}')
+            with patch("agent_demo.__main__.RUN_LOG_PATH", path), patch(
+                "agent_demo.__main__.LocalLlama", return_value=model
+            ), redirect_stdout(io.StringIO()), patch("sys.stderr", new=io.StringIO()):
+                self.assertEqual(main(), 1)
+            record = json.loads(path.read_text())
+            self.assertEqual(record["status"], "failed")
+            self.assertIn("error", record)
+            self.assertNotIn("answer", record)
+            self.assertEqual(record["steps"][0]["observation"]["data"]["unit_price"], 12.5)
+            self.assertEqual(record["steps"][1], {"step": 2})
+
+    def test_interrupted_run_is_saved(self):
+        with TemporaryDirectory() as folder:
+            path = Path(folder) / "latest.json"
+            with patch("agent_demo.__main__.RUN_LOG_PATH", path), patch(
+                "agent_demo.__main__.LocalLlama.complete", side_effect=KeyboardInterrupt
+            ), patch("sys.stderr", new=io.StringIO()):
+                self.assertEqual(main(), 130)
+            record = json.loads(path.read_text())
+            self.assertEqual(record["status"], "interrupted")
+            self.assertEqual(record["steps"], [{"step": 1}])
 
     def test_service_failure_has_no_fallback(self):
         for body in (b"{}", b"null", b"not json", b'{"message":{"content":""}}'):

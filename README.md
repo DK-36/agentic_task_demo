@@ -29,6 +29,19 @@ store lists a notebook at CNY 12.5, so the expected result is CNY 37.5.
 The terminal shows each action, its brief purpose, the tool result, and the final
 answer. The wording of the model's response may vary.
 
+## Run record
+
+I automatically save the actual execution to `runs/latest.json` after each run.
+This file contains the model name, question, timestamps, raw model responses,
+parsed actions, tool results, and the final answer. Failed or interrupted runs
+also save the steps collected so far and an error message.
+
+Each run replaces `latest.json`, so it corresponds to the latest execution.
+The terminal prints its location. I keep `runs/` ignored by Git, along with my
+local notes. The old JSON files in `docs/archive/` are historical records;
+the demo does not read or copy them. A `completed` status means the model
+returned a final answer, not that a benchmark verified its correctness.
+
 ## How I implemented the loop
 
 1. I define `get_price` and `multiply`, including their parameter descriptions
@@ -61,8 +74,9 @@ demo.py                 Entry point
 agent_demo/agent.py     Prompt, action parsing, and execution loop
 agent_demo/models.py    Local Ollama request
 agent_demo/tools.py     Tool descriptions and implementations
-agent_demo/__main__.py  Console output and error handling
-tests/test_agent.py     Small checks for the loop and local request format
+agent_demo/__main__.py  Console output, error handling, and JSON run record
+tests/test_agent.py     Checks for the loop, local request, and saved record
+runs/latest.json        Actual latest execution (generated locally)
 ```
 
 I keep my reading notes and archived runs in `docs/`. Both `doc/` and `docs/` are
