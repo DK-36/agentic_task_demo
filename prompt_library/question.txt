@@ -1,0 +1,1 @@
+Find the unit price of a notebook and use the tools to calculate the total price of 3 notebooks.

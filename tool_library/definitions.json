@@ -1,0 +1,43 @@
+[
+  {
+    "name": "get_price",
+    "description": "Look up the unit price in CNY in a fictional store. A notebook is a paper notebook.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "item": {
+          "type": "string",
+          "enum": [
+            "notebook",
+            "pen",
+            "eraser"
+          ]
+        }
+      },
+      "required": [
+        "item"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "multiply",
+    "description": "Multiply two numbers, for example a unit price by a quantity.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "a": {
+          "type": "number"
+        },
+        "b": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "a",
+        "b"
+      ],
+      "additionalProperties": false
+    }
+  }
+]

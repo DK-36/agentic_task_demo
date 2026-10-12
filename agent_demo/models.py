@@ -9,20 +9,25 @@ URL = "http://127.0.0.1:11434/api/chat"
 
 
 class LocalLlama:
-    def complete(self, messages):
+    def complete(self, messages, trace=None):
+        trace = {} if trace is None else trace
         payload = {
             "model": MODEL,
             "messages": messages,
             "stream": False,
-            "format": "json",
             "options": {"temperature": 0, "num_predict": 512},
         }
-        request = Request(URL, data=json.dumps(payload).encode("utf-8"),
+        body = json.dumps(payload).encode("utf-8")
+        trace["request"] = {"url": URL, "body": body.decode("utf-8")}
+        request = Request(URL, data=body,
                           headers={"Content-Type": "application/json"})
         try:
             with urlopen(request, timeout=120) as response:
-                data = json.load(response)
+                trace["response_body"] = response.read().decode("utf-8")
+            data = json.loads(trace["response_body"])
         except HTTPError as exc:
+            trace["http_status"] = exc.code
+            trace["response_body"] = exc.read().decode("utf-8", errors="replace")
             raise RuntimeError(
                 f"Ollama returned HTTP {exc.code}. Check that {MODEL} is installed."
             ) from exc
